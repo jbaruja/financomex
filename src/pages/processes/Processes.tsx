@@ -1,4 +1,5 @@
 import { useState, useEffect, FormEvent, ChangeEvent, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import DataTable from '../../components/common/DataTable';
 import type { Column } from '../../components/common/DataTable';
 import Modal from '../../components/common/Modal';
@@ -19,6 +20,7 @@ import { getClients, createClient } from '../../services/clientService';
 import { getImporters } from '../../services/importerService';
 
 export default function Processes() {
+  const navigate = useNavigate();
   const referenceInputRef = useRef<HTMLInputElement>(null);
   const [processes, setProcesses] = useState<ProcessWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
@@ -543,6 +545,22 @@ export default function Processes() {
         </button>
       )}
 
+      {/* Botão Ver Extrato */}
+      <button
+        onClick={() => navigate(`/processos/${process.id}`)}
+        className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+        title="Ver extrato"
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+          />
+        </svg>
+      </button>
+
       {/* Botão Editar */}
       <button
         onClick={() => handleEdit(process)}
@@ -584,7 +602,7 @@ export default function Processes() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Processos</h1>
           <p className="mt-1 text-sm text-gray-600">
-            Gerenciamento de processos de importação
+            
           </p>
         </div>
         <button

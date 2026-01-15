@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useSidebar } from '../../contexts/SidebarContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface NavItem {
   name: string;
@@ -20,6 +21,8 @@ const navItems: NavItem[] = [
 
 export default function Sidebar() {
   const { isMobileOpen, closeMobile } = useSidebar();
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
 
   // Recupera o estado do localStorage ou usa comportamento responsivo como padrão
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -44,6 +47,11 @@ export default function Sidebar() {
     closeMobile();
   };
 
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/login');
+  };
+
   return (
     <>
       {/* Backdrop (somente mobile) */}
@@ -62,6 +70,7 @@ export default function Sidebar() {
           md:relative md:translate-x-0
           fixed inset-y-0 left-0
           ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}
+          flex flex-col
         `}
       >
         {/* Botão de toggle (oculto em mobile) */}
@@ -111,7 +120,7 @@ export default function Sidebar() {
         </div>
 
         {/* Navegação */}
-        <nav className="px-4 pb-4 space-y-2 mt-4 md:mt-0">
+        <nav className="px-4 pb-4 space-y-2 mt-4 md:mt-0 flex-1">
           {navItems.map((item) => (
             <NavLink
               key={item.path}
@@ -133,6 +142,30 @@ export default function Sidebar() {
             </NavLink>
           ))}
         </nav>
+
+        {/* Seção do Usuário */}
+        <div className="px-4 pb-4 border-t border-gray-800 pt-4">
+          {!isCollapsed && (
+            <div className="mb-3">
+              <p className="text-xs text-gray-400 mb-1">Logado como:</p>
+              <p className="text-sm font-medium text-white truncate">{user?.email}</p>
+            </div>
+          )}
+          <button
+            onClick={handleLogout}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-red-400 hover:bg-red-900/20 hover:text-red-300 transition duration-200 ${
+              isCollapsed ? 'md:justify-center' : ''
+            }`}
+            title={isCollapsed ? 'Sair' : ''}
+          >
+            <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            <span className={`font-medium ${isCollapsed ? 'md:hidden' : ''}`}>
+              Sair
+            </span>
+          </button>
+        </div>
       </aside>
     </>
   );

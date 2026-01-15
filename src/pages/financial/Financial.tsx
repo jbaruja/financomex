@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect, useRef, FormEvent } from 'react';
 import { useToast } from '../../contexts/ToastContext';
 import type {
   TransactionType,
@@ -22,7 +22,7 @@ import {
   deleteExpense,
   getTotalExpenses,
 } from '../../services/expenseService';
-import { getClients } from '../../services/clientService';
+import { getClients, updateClientBalance } from '../../services/clientService';
 import { getProcesses } from '../../services/processService';
 import { getBankAccounts } from '../../services/bankAccountService';
 import { getExpenseCategories } from '../../services/expenseCategoryService';
@@ -32,6 +32,17 @@ export default function Financial() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Client search
+  const [clientSearch, setClientSearch] = useState('');
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const [selectedClientIndex, setSelectedClientIndex] = useState(-1);
+
+  // Process search
+  const [processSearch, setProcessSearch] = useState('');
+  const [showProcessDropdown, setShowProcessDropdown] = useState(false);
+  const [selectedProcessIndex, setSelectedProcessIndex] = useState(-1);
 
   // Form data
   const [depositForm, setDepositForm] = useState<DepositInput>({
@@ -75,12 +86,25 @@ export default function Financial() {
   // Amount display
   const [amountDisplay, setAmountDisplay] = useState('0,00');
 
+  // Ref for amount input
+  const amountInputRef = useRef<HTMLInputElement>(null);
+
   const { showToast } = useToast();
 
   // Load initial data
   useEffect(() => {
     loadData();
   }, []);
+
+  // Focus on amount input when modal opens
+  useEffect(() => {
+    if (isModalOpen && amountInputRef.current) {
+      setTimeout(() => {
+        amountInputRef.current?.focus();
+        amountInputRef.current?.select();
+      }, 100);
+    }
+  }, [isModalOpen]);
 
   const loadData = async () => {
     try {
@@ -183,6 +207,149 @@ export default function Financial() {
     }
   };
 
+  const handleAmountFocus = () => {
+    // Clear 0,00 when focusing
+    if (amountDisplay === '0,00') {
+      setAmountDisplay('');
+    }
+  };
+
+  // Filter clients by search
+  const filteredClients = clients.filter((client) => {
+    const search = clientSearch.toLowerCase();
+    return (
+      client.code.toLowerCase().includes(search) ||
+      client.name.toLowerCase().includes(search)
+    );
+  });
+
+  // Filter processes by search
+  const filteredProcesses = processes.filter((process) => {
+    const search = processSearch.toLowerCase();
+    return (
+      process.reference.toLowerCase().includes(search) ||
+      process.client?.name.toLowerCase().includes(search) ||
+      process.client?.code.toLowerCase().includes(search)
+    );
+  });
+
+  const handleClientSelect = (client: Client) => {
+    setDepositForm({ ...depositForm, client_id: client.id });
+    setClientSearch(`${client.code} - ${client.name}`);
+    setShowClientDropdown(false);
+    setSelectedClientIndex(-1);
+  };
+
+  const handleProcessSelect = (process: ProcessWithRelations) => {
+    setExpenseForm({ ...expenseForm, process_id: process.id });
+    setProcessSearch(`${process.reference} - ${process.client?.name || ''}`);
+    setShowProcessDropdown(false);
+    setSelectedProcessIndex(-1);
+  };
+
+  const handleClientKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showClientDropdown || filteredClients.length === 0) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedClientIndex((prev) =>
+          prev < filteredClients.length - 1 ? prev + 1 : prev
+        );
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedClientIndex((prev) => (prev > 0 ? prev - 1 : -1));
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (selectedClientIndex >= 0 && selectedClientIndex < filteredClients.length) {
+          handleClientSelect(filteredClients[selectedClientIndex]);
+        }
+        break;
+      case 'Escape':
+        e.preventDefault();
+        setShowClientDropdown(false);
+        setSelectedClientIndex(-1);
+        break;
+      case 'Tab':
+        setShowClientDropdown(false);
+        setSelectedClientIndex(-1);
+        break;
+    }
+  };
+
+  const handleProcessKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showProcessDropdown || filteredProcesses.length === 0) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedProcessIndex((prev) =>
+          prev < filteredProcesses.length - 1 ? prev + 1 : prev
+        );
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedProcessIndex((prev) => (prev > 0 ? prev - 1 : -1));
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (selectedProcessIndex >= 0 && selectedProcessIndex < filteredProcesses.length) {
+          handleProcessSelect(filteredProcesses[selectedProcessIndex]);
+        }
+        break;
+      case 'Escape':
+        e.preventDefault();
+        setShowProcessDropdown(false);
+        setSelectedProcessIndex(-1);
+        break;
+      case 'Tab':
+        setShowProcessDropdown(false);
+        setSelectedProcessIndex(-1);
+        break;
+    }
+  };
+
+  const openModal = () => {
+    setIsModalOpen(true);
+    setAmountDisplay('');
+    setClientSearch('');
+    setProcessSearch('');
+    setShowClientDropdown(false);
+    setShowProcessDropdown(false);
+    setSelectedClientIndex(-1);
+    setSelectedProcessIndex(-1);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setFormErrors({});
+    // Reset forms
+    setDepositForm({
+      client_id: '',
+      bank_account_id: '',
+      amount: 0,
+      date: new Date().toISOString().split('T')[0],
+      description: '',
+    });
+    setExpenseForm({
+      process_id: '',
+      category_id: '',
+      bank_account_id: '',
+      amount: 0,
+      date: new Date().toISOString().split('T')[0],
+      description: '',
+    });
+    setAmountDisplay('');
+    setClientSearch('');
+    setProcessSearch('');
+    setShowClientDropdown(false);
+    setShowProcessDropdown(false);
+    setSelectedClientIndex(-1);
+    setSelectedProcessIndex(-1);
+  };
+
   // Validate form
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
@@ -216,32 +383,63 @@ export default function Financial() {
 
     try {
       if (transactionType === 'deposit') {
+        // Criar depósito
         await createDeposit(depositForm);
+
+        // Atualizar saldo do cliente (incrementar)
+        await updateClientBalance(depositForm.client_id, depositForm.amount);
+
         showToast('Depósito registrado com sucesso!', 'success');
-        // Reset form
+
+        // Reset form (mantém cliente e conta bancária para lançamentos sequenciais)
+        const currentClientId = depositForm.client_id;
+        const currentBankAccountId = depositForm.bank_account_id;
+
         setDepositForm({
-          client_id: '',
-          bank_account_id: '',
+          client_id: currentClientId,
+          bank_account_id: currentBankAccountId,
           amount: 0,
           date: new Date().toISOString().split('T')[0],
           description: '',
         });
       } else {
+        // Criar despesa
         await createExpense(expenseForm);
+
+        // Buscar cliente do processo e atualizar saldo (decrementar)
+        const process = processes.find(p => p.id === expenseForm.process_id);
+        if (process?.client_id) {
+          await updateClientBalance(process.client_id, -expenseForm.amount);
+        }
+
         showToast('Despesa registrada com sucesso!', 'success');
-        // Reset form
+
+        // Reset form (mantém processo, categoria e conta bancária para lançamentos sequenciais)
+        const currentProcessId = expenseForm.process_id;
+        const currentCategoryId = expenseForm.category_id;
+        const currentBankAccountId = expenseForm.bank_account_id;
+
         setExpenseForm({
-          process_id: '',
-          category_id: '',
-          bank_account_id: '',
+          process_id: currentProcessId,
+          category_id: currentCategoryId,
+          bank_account_id: currentBankAccountId,
           amount: 0,
           date: new Date().toISOString().split('T')[0],
           description: '',
         });
       }
 
-      setAmountDisplay('0,00');
+      // Limpar apenas valor e focar novamente
+      setAmountDisplay('');
       setFormErrors({});
+
+      // Focar no campo de valor para próximo lançamento
+      setTimeout(() => {
+        amountInputRef.current?.focus();
+        amountInputRef.current?.select();
+      }, 100);
+
+      // NÃO fechar modal - mantém aberto para lançamentos sequenciais
       await loadData();
     } catch (error: any) {
       showToast(error.message || 'Erro ao salvar movimentação', 'error');
@@ -258,9 +456,21 @@ export default function Financial() {
 
     try {
       if (transaction.type === 'deposit') {
+        // Deletar depósito
         await deleteDeposit(transaction.id);
+
+        // Reverter saldo do cliente (decrementar)
+        if (transaction.client?.id) {
+          await updateClientBalance(transaction.client.id, -transaction.amount);
+        }
       } else {
+        // Deletar despesa
         await deleteExpense(transaction.id);
+
+        // Reverter saldo do cliente (incrementar)
+        if (transaction.process?.client_id) {
+          await updateClientBalance(transaction.process.client_id, transaction.amount);
+        }
       }
       showToast('Movimentação excluída com sucesso!', 'success');
       await loadData();
@@ -292,263 +502,383 @@ export default function Financial() {
   return (
     <div>
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Movimentações Financeiras</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Gerenciamento de depósitos e despesas
-        </p>
-      </div>
-
-      {/* Form Card */}
-      <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Nova Movimentação</h2>
-
-        {/* Toggle */}
-        <div className="flex items-center gap-4 mb-6">
-          <button
-            type="button"
-            onClick={() => {
-              setTransactionType('deposit');
-              setAmountDisplay('0,00');
-              setFormErrors({});
-            }}
-            className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors ${
-              transactionType === 'deposit'
-                ? 'bg-green-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            💰 Depósito
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setTransactionType('expense');
-              setAmountDisplay('0,00');
-              setFormErrors({});
-            }}
-            className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors ${
-              transactionType === 'expense'
-                ? 'bg-red-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            💸 Despesa
-          </button>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Movimentações Financeiras</h1>
+          <p className="mt-1 text-sm text-gray-600">
+            
+          </p>
         </div>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Data */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Data <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="date"
-                value={transactionType === 'deposit' ? depositForm.date : expenseForm.date}
-                onChange={(e) =>
-                  transactionType === 'deposit'
-                    ? setDepositForm({ ...depositForm, date: e.target.value })
-                    : setExpenseForm({ ...expenseForm, date: e.target.value })
-                }
-                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${
-                  formErrors.date ? 'border-red-500' : 'border-gray-300'
-                }`}
-              />
-              {formErrors.date && (
-                <p className="mt-1 text-sm text-red-500">{formErrors.date}</p>
-              )}
-            </div>
-
-            {/* Valor */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Valor <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
-                  R$
-                </span>
-                <input
-                  type="text"
-                  value={amountDisplay}
-                  onChange={handleAmountChange}
-                  onBlur={() => {
-                    const amount = transactionType === 'deposit' ? depositForm.amount : expenseForm.amount;
-                    setAmountDisplay(formatCurrency(amount));
-                  }}
-                  className={`w-full pl-12 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono ${
-                    formErrors.amount ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="0,00"
-                />
-              </div>
-              {formErrors.amount && (
-                <p className="mt-1 text-sm text-red-500">{formErrors.amount}</p>
-              )}
-            </div>
-
-            {/* Cliente (only for deposits) */}
-            {transactionType === 'deposit' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Cliente <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={depositForm.client_id}
-                  onChange={(e) =>
-                    setDepositForm({ ...depositForm, client_id: e.target.value })
-                  }
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${
-                    formErrors.client ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                >
-                  <option value="">Selecione um cliente</option>
-                  {clients.map((client) => (
-                    <option key={client.id} value={client.id}>
-                      {client.code} - {client.name}
-                    </option>
-                  ))}
-                </select>
-                {formErrors.client && (
-                  <p className="mt-1 text-sm text-red-500">{formErrors.client}</p>
-                )}
-              </div>
-            )}
-
-            {/* Processo (only for expenses) */}
-            {transactionType === 'expense' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Processo/Referência <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={expenseForm.process_id}
-                  onChange={(e) =>
-                    setExpenseForm({ ...expenseForm, process_id: e.target.value })
-                  }
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${
-                    formErrors.process ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                >
-                  <option value="">Selecione um processo</option>
-                  {processes.map((process) => (
-                    <option key={process.id} value={process.id}>
-                      {process.reference} - {process.client?.name}
-                    </option>
-                  ))}
-                </select>
-                {formErrors.process && (
-                  <p className="mt-1 text-sm text-red-500">{formErrors.process}</p>
-                )}
-              </div>
-            )}
-
-            {/* Categoria (only for expenses) */}
-            {transactionType === 'expense' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Categoria <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={expenseForm.category_id}
-                  onChange={(e) =>
-                    setExpenseForm({ ...expenseForm, category_id: e.target.value })
-                  }
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${
-                    formErrors.category ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                >
-                  <option value="">Selecione uma categoria</option>
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-                {formErrors.category && (
-                  <p className="mt-1 text-sm text-red-500">{formErrors.category}</p>
-                )}
-              </div>
-            )}
-
-            {/* Conta Bancária */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Conta Bancária <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={
-                  transactionType === 'deposit'
-                    ? depositForm.bank_account_id
-                    : expenseForm.bank_account_id
-                }
-                onChange={(e) =>
-                  transactionType === 'deposit'
-                    ? setDepositForm({ ...depositForm, bank_account_id: e.target.value })
-                    : setExpenseForm({ ...expenseForm, bank_account_id: e.target.value })
-                }
-                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${
-                  formErrors.bank_account ? 'border-red-500' : 'border-gray-300'
-                }`}
-              >
-                <option value="">Selecione uma conta</option>
-                {bankAccounts.map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.name} {account.bank && `- ${account.bank}`}
-                  </option>
-                ))}
-              </select>
-              {formErrors.bank_account && (
-                <p className="mt-1 text-sm text-red-500">{formErrors.bank_account}</p>
-              )}
-            </div>
-          </div>
-
-          {/* Descrição */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Descrição
-            </label>
-            <textarea
-              value={
-                transactionType === 'deposit'
-                  ? depositForm.description
-                  : expenseForm.description
-              }
-              onChange={(e) =>
-                transactionType === 'deposit'
-                  ? setDepositForm({ ...depositForm, description: e.target.value })
-                  : setExpenseForm({ ...expenseForm, description: e.target.value })
-              }
-              rows={2}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-              placeholder="Observações adicionais..."
-            />
-          </div>
-
-          {/* Botão Submit */}
-          <div className="flex justify-end pt-4">
-            <button
-              type="submit"
-              disabled={submitting}
-              className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                transactionType === 'deposit'
-                  ? 'bg-green-600 hover:bg-green-700 disabled:bg-green-400'
-                  : 'bg-red-600 hover:bg-red-700 disabled:bg-red-400'
-              } text-white`}
-            >
-              {submitting
-                ? 'Salvando...'
-                : transactionType === 'deposit'
-                ? 'Registrar Depósito'
-                : 'Registrar Despesa'}
-            </button>
-          </div>
-        </form>
+        <button
+          onClick={openModal}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center gap-2"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          Nova Movimentação
+        </button>
       </div>
+
+      {/* Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Nova Movimentação</h2>
+              <button
+                onClick={closeModal}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6">
+              {/* Toggle */}
+              <div className="flex items-center gap-4 mb-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTransactionType('deposit');
+                    setAmountDisplay('');
+                    setFormErrors({});
+                  }}
+                  className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors ${
+                    transactionType === 'deposit'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  💰 Depósito
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTransactionType('expense');
+                    setAmountDisplay('');
+                    setFormErrors({});
+                  }}
+                  className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors ${
+                    transactionType === 'expense'
+                      ? 'bg-red-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  💸 Despesa
+                </button>
+              </div>
+
+              {/* Form */}
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Data */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Data <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={transactionType === 'deposit' ? depositForm.date : expenseForm.date}
+                      onChange={(e) =>
+                        transactionType === 'deposit'
+                          ? setDepositForm({ ...depositForm, date: e.target.value })
+                          : setExpenseForm({ ...expenseForm, date: e.target.value })
+                      }
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${
+                        formErrors.date ? 'border-red-500' : 'border-gray-300'
+                      }`}
+                    />
+                    {formErrors.date && (
+                      <p className="mt-1 text-sm text-red-500">{formErrors.date}</p>
+                    )}
+                  </div>
+
+                  {/* Valor */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Valor <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
+                        R$
+                      </span>
+                      <input
+                        ref={amountInputRef}
+                        type="text"
+                        value={amountDisplay}
+                        onChange={handleAmountChange}
+                        onFocus={handleAmountFocus}
+                        onBlur={() => {
+                          if (amountDisplay === '') {
+                            setAmountDisplay('0,00');
+                          } else {
+                            const amount = transactionType === 'deposit' ? depositForm.amount : expenseForm.amount;
+                            setAmountDisplay(formatCurrency(amount));
+                          }
+                        }}
+                        className={`w-full pl-12 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono ${
+                          formErrors.amount ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                        placeholder="0,00"
+                      />
+                    </div>
+                    {formErrors.amount && (
+                      <p className="mt-1 text-sm text-red-500">{formErrors.amount}</p>
+                    )}
+                  </div>
+
+                  {/* Cliente (only for deposits) */}
+                  {transactionType === 'deposit' && (
+                    <div className="relative">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Cliente <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={clientSearch}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setClientSearch(value);
+                          setShowClientDropdown(true);
+                          setSelectedClientIndex(-1);
+                          if (value === '') {
+                            setDepositForm({ ...depositForm, client_id: '' });
+                          }
+                        }}
+                        onKeyDown={handleClientKeyDown}
+                        onFocus={(e) => {
+                          // Only show dropdown if there's text to search
+                          if (e.target.value.length > 0) {
+                            setShowClientDropdown(true);
+                          }
+                        }}
+                        onBlur={() => {
+                          // Delay to allow click on dropdown item
+                          setTimeout(() => {
+                            setShowClientDropdown(false);
+                            setSelectedClientIndex(-1);
+                          }, 200);
+                        }}
+                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${
+                          formErrors.client ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                        placeholder="Digite o código ou nome do cliente..."
+                      />
+                      {formErrors.client && (
+                        <p className="mt-1 text-sm text-red-500">{formErrors.client}</p>
+                      )}
+
+                      {/* Dropdown */}
+                      {showClientDropdown && clientSearch && filteredClients.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                          {filteredClients.map((client, index) => (
+                            <button
+                              key={client.id}
+                              type="button"
+                              onClick={() => handleClientSelect(client)}
+                              className={`w-full px-4 py-2 text-left transition-colors flex items-center justify-between ${
+                                index === selectedClientIndex
+                                  ? 'bg-blue-100'
+                                  : 'hover:bg-gray-100'
+                              }`}
+                            >
+                              <div>
+                                <div className="font-semibold text-gray-900">{client.name}</div>
+                                <div className="text-sm text-gray-500">{client.code}</div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Processo (only for expenses) */}
+                  {transactionType === 'expense' && (
+                    <div className="relative">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Processo/Referência <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={processSearch}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setProcessSearch(value);
+                          setShowProcessDropdown(true);
+                          setSelectedProcessIndex(-1);
+                          if (value === '') {
+                            setExpenseForm({ ...expenseForm, process_id: '' });
+                          }
+                        }}
+                        onKeyDown={handleProcessKeyDown}
+                        onFocus={(e) => {
+                          // Only show dropdown if there's text to search
+                          if (e.target.value.length > 0) {
+                            setShowProcessDropdown(true);
+                          }
+                        }}
+                        onBlur={() => {
+                          // Delay to allow click on dropdown item
+                          setTimeout(() => {
+                            setShowProcessDropdown(false);
+                            setSelectedProcessIndex(-1);
+                          }, 200);
+                        }}
+                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${
+                          formErrors.process ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                        placeholder="Digite a referência ou cliente..."
+                      />
+                      {formErrors.process && (
+                        <p className="mt-1 text-sm text-red-500">{formErrors.process}</p>
+                      )}
+
+                      {/* Dropdown */}
+                      {showProcessDropdown && processSearch && filteredProcesses.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                          {filteredProcesses.map((process, index) => (
+                            <button
+                              key={process.id}
+                              type="button"
+                              onClick={() => handleProcessSelect(process)}
+                              className={`w-full px-4 py-2 text-left transition-colors flex items-center justify-between ${
+                                index === selectedProcessIndex
+                                  ? 'bg-blue-100'
+                                  : 'hover:bg-gray-100'
+                              }`}
+                            >
+                              <div>
+                                <div className="font-semibold text-gray-900 font-mono">
+                                  {process.reference}
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                  {process.client?.name} ({process.client?.code})
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Categoria (only for expenses) */}
+                  {transactionType === 'expense' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Categoria <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={expenseForm.category_id}
+                        onChange={(e) =>
+                          setExpenseForm({ ...expenseForm, category_id: e.target.value })
+                        }
+                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${
+                          formErrors.category ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                      >
+                        <option value="">Selecione uma categoria</option>
+                        {categories.map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.name}
+                          </option>
+                        ))}
+                      </select>
+                      {formErrors.category && (
+                        <p className="mt-1 text-sm text-red-500">{formErrors.category}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Conta Bancária */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Conta Bancária <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={
+                        transactionType === 'deposit'
+                          ? depositForm.bank_account_id
+                          : expenseForm.bank_account_id
+                      }
+                      onChange={(e) =>
+                        transactionType === 'deposit'
+                          ? setDepositForm({ ...depositForm, bank_account_id: e.target.value })
+                          : setExpenseForm({ ...expenseForm, bank_account_id: e.target.value })
+                      }
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${
+                        formErrors.bank_account ? 'border-red-500' : 'border-gray-300'
+                      }`}
+                    >
+                      <option value="">Selecione uma conta</option>
+                      {bankAccounts.map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.name} {account.bank && `- ${account.bank}`}
+                        </option>
+                      ))}
+                    </select>
+                    {formErrors.bank_account && (
+                      <p className="mt-1 text-sm text-red-500">{formErrors.bank_account}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Descrição */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Descrição
+                  </label>
+                  <textarea
+                    value={
+                      transactionType === 'deposit'
+                        ? depositForm.description
+                        : expenseForm.description
+                    }
+                    onChange={(e) =>
+                      transactionType === 'deposit'
+                        ? setDepositForm({ ...depositForm, description: e.target.value })
+                        : setExpenseForm({ ...expenseForm, description: e.target.value })
+                    }
+                    rows={2}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    placeholder="Observações adicionais..."
+                  />
+                </div>
+
+                {/* Botões */}
+                <div className="flex justify-end gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="px-6 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+                      transactionType === 'deposit'
+                        ? 'bg-green-600 hover:bg-green-700 disabled:bg-green-400'
+                        : 'bg-red-600 hover:bg-red-700 disabled:bg-red-400'
+                    } text-white`}
+                  >
+                    {submitting
+                      ? 'Salvando...'
+                      : transactionType === 'deposit'
+                      ? 'Registrar Depósito'
+                      : 'Registrar Despesa'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Totalizadores */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">

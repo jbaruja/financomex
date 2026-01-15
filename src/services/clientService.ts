@@ -75,3 +75,23 @@ export async function checkClientCodeExists(code: string, excludeId?: string) {
   if (error) throw error;
   return (data?.length || 0) > 0;
 }
+
+// Atualizar saldo do cliente (incrementar ou decrementar)
+export async function updateClientBalance(clientId: string, amount: number) {
+  // Buscar saldo atual
+  const client = await getClientById(clientId);
+
+  // Calcular novo saldo
+  const newBalance = client.balance + amount;
+
+  // Atualizar cliente
+  const { data, error } = await supabase
+    .from('clients')
+    .update({ balance: newBalance })
+    .eq('id', clientId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as Client;
+}

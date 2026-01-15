@@ -33,7 +33,7 @@ export async function getDepositById(id: string): Promise<DepositWithRelations> 
     .single();
 
   if (error) throw error;
-  return data as DepositWithRelations[];
+  return data as DepositWithRelations;
 }
 
 /**
