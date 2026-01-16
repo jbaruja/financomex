@@ -281,7 +281,7 @@ export default function Dashboard() {
                   cy="50%"
                   labelLine={false}
                   label={(props) => {
-                    const { cx, cy, midAngle, innerRadius, outerRadius, percent, index } = props;
+                    const { cx, cy, midAngle, innerRadius, outerRadius, percent } = props;
                     if (typeof percent !== 'number') return null;
 
                     const radius = Number(innerRadius) + (Number(outerRadius) - Number(innerRadius)) * 0.5;

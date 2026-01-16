@@ -1,5 +1,6 @@
 import { useState, useEffect, type FormEvent, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import type { Column } from '../../components/common/DataTable';
 import Modal from '../../components/common/Modal';
 import { useToast } from '../../contexts/ToastContext';
 import type { Client, ClientInput } from '../../types/database';
@@ -198,7 +199,7 @@ export default function Clients() {
     {
       key: 'code',
       label: 'Código',
-      render: (client) => (
+      render: (client: Client) => (
         <span className="font-mono font-semibold">{client.code}</span>
       ),
     },
@@ -209,7 +210,7 @@ export default function Clients() {
     {
       key: 'balance',
       label: 'Saldo',
-      render: (client) => (
+      render: (client: Client) => (
         <span className="font-mono font-semibold text-green-700">
           R$ {client.balance?.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0,00'}
         </span>
@@ -218,7 +219,7 @@ export default function Clients() {
     {
       key: 'active',
       label: 'Status',
-      render: (client) => (
+      render: (client: Client) => (
         <span
           className={`px-2 py-1 rounded-full text-xs font-medium ${
             client.active
