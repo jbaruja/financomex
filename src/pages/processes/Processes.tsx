@@ -61,6 +61,15 @@ export default function Processes() {
     reference: '',
   });
 
+  // Filter autocomplete states
+  const [filterClientSearch, setFilterClientSearch] = useState('');
+  const [showFilterClientDropdown, setShowFilterClientDropdown] = useState(false);
+  const [selectedFilterClientIndex, setSelectedFilterClientIndex] = useState(-1);
+
+  const [filterReferenceSearch, setFilterReferenceSearch] = useState('');
+  const [showFilterReferenceDropdown, setShowFilterReferenceDropdown] = useState(false);
+  const [selectedFilterReferenceIndex, setSelectedFilterReferenceIndex] = useState(-1);
+
   // Carregar dados iniciais
   useEffect(() => {
     loadData();
@@ -104,25 +113,12 @@ export default function Processes() {
   const applyFilters = async () => {
     try {
       setLoading(true);
-
-      // Se o filtro é "pending_billing", buscar processos finalizados e filtrar client-side
-      if (filters.status === 'pending_billing') {
-        const filtered = await searchProcesses({
-          clientId: filters.clientId || undefined,
-          status: 'finalized',
-          reference: filters.reference || undefined,
-        });
-        // Filtrar apenas os que não têm billed_at
-        const pendingBilling = filtered.filter(p => !p.billed_at);
-        setProcesses(pendingBilling);
-      } else {
-        const filtered = await searchProcesses({
-          clientId: filters.clientId || undefined,
-          status: filters.status || undefined,
-          reference: filters.reference || undefined,
-        });
-        setProcesses(filtered);
-      }
+      const filtered = await searchProcesses({
+        clientId: filters.clientId || undefined,
+        status: filters.status || undefined,
+        reference: filters.reference || undefined,
+      });
+      setProcesses(filtered);
     } catch (error: any) {
       showToast(error.message || 'Erro ao filtrar processos', 'error');
     } finally {
@@ -137,7 +133,86 @@ export default function Processes() {
       status: '',
       reference: '',
     });
+    setFilterClientSearch('');
+    setFilterReferenceSearch('');
     loadData();
+  };
+
+  // Filter clients for autocomplete
+  const filteredFilterClients = clients.filter((client) => {
+    const search = filterClientSearch.toLowerCase();
+    return (
+      client.code.toLowerCase().includes(search) ||
+      client.name.toLowerCase().includes(search)
+    );
+  });
+
+  const handleFilterClientSelect = (client: Client) => {
+    setFilters({ ...filters, clientId: client.id });
+    setFilterClientSearch(`${client.code} - ${client.name}`);
+    setShowFilterClientDropdown(false);
+    setSelectedFilterClientIndex(-1);
+  };
+
+  const handleFilterClientKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showFilterClientDropdown || filteredFilterClients.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedFilterClientIndex((prev) =>
+        prev < filteredFilterClients.length - 1 ? prev + 1 : prev
+      );
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedFilterClientIndex((prev) => (prev > 0 ? prev - 1 : -1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (selectedFilterClientIndex >= 0 && selectedFilterClientIndex < filteredFilterClients.length) {
+        handleFilterClientSelect(filteredFilterClients[selectedFilterClientIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setShowFilterClientDropdown(false);
+      setSelectedFilterClientIndex(-1);
+    }
+  };
+
+  // Filter processes (references) for autocomplete
+  const filteredFilterReferences = processes.filter((process) => {
+    const search = filterReferenceSearch.toLowerCase();
+    return (
+      process.reference.toLowerCase().includes(search) ||
+      process.client?.name.toLowerCase().includes(search) ||
+      process.client?.code.toLowerCase().includes(search)
+    );
+  });
+
+  const handleFilterReferenceSelect = (process: ProcessWithRelations) => {
+    setFilters({ ...filters, reference: process.reference });
+    setFilterReferenceSearch(process.reference);
+    setShowFilterReferenceDropdown(false);
+    setSelectedFilterReferenceIndex(-1);
+  };
+
+  const handleFilterReferenceKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showFilterReferenceDropdown || filteredFilterReferences.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedFilterReferenceIndex((prev) =>
+        prev < filteredFilterReferences.length - 1 ? prev + 1 : prev
+      );
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedFilterReferenceIndex((prev) => (prev > 0 ? prev - 1 : -1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (selectedFilterReferenceIndex >= 0 && selectedFilterReferenceIndex < filteredFilterReferences.length) {
+        handleFilterReferenceSelect(filteredFilterReferences[selectedFilterReferenceIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setShowFilterReferenceDropdown(false);
+      setSelectedFilterReferenceIndex(-1);
+    }
   };
 
   // Formatar referência automaticamente (XXXX.XXX.XXXX.XX)
@@ -386,20 +461,7 @@ export default function Processes() {
     }
   };
 
-  // Faturar processo
-  const handleBill = async (process: ProcessWithRelations) => {
-    if (!confirm(`Deseja faturar o processo "${process.reference}"?`)) {
-      return;
-    }
-
-    try {
-      await billProcess(process.id);
-      showToast('Processo faturado com sucesso!', 'success');
-      loadData();
-    } catch (error: any) {
-      showToast(error.message || 'Erro ao faturar processo', 'error');
-    }
-  };
+  // Faturamento deve ser feito na página de detalhes do processo
 
   // Validar formulário
   const validateForm = (): boolean => {
@@ -448,19 +510,10 @@ export default function Processes() {
 
   // Função para obter badge de status
   const getStatusBadge = (process: ProcessWithRelations) => {
-    // Se o processo está finalizado mas não foi cobrado, mostrar badge vermelho
-    if (process.status === 'finalized' && !process.billed_at) {
-      return (
-        <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-300">
-          🚨 Aguardando Cobrança
-        </span>
-      );
-    }
-
     const badges = {
       open: { label: 'Aberto', className: 'bg-blue-100 text-blue-800' },
-      finalized: { label: 'Finalizado', className: 'bg-green-100 text-green-800' },
-      billed: { label: 'Faturado', className: 'bg-purple-100 text-purple-800' },
+      finalized: { label: 'Finalizado', className: 'bg-purple-100 text-purple-800' },
+      billed: { label: 'Faturado', className: 'bg-green-100 text-green-800' },
     };
     const badge = badges[process.status as keyof typeof badges] || badges.open;
     return (
@@ -468,6 +521,12 @@ export default function Processes() {
         {badge.label}
       </span>
     );
+  };
+
+  // Format date - evita problema de timezone
+  const formatDate = (date: string): string => {
+    const [year, month, day] = date.split('T')[0].split('-');
+    return new Date(Number(year), Number(month) - 1, Number(day)).toLocaleDateString('pt-BR');
   };
 
   // Colunas da tabela
@@ -502,7 +561,7 @@ export default function Processes() {
     {
       key: 'created_at',
       label: 'Data Criação',
-      render: (process) => new Date(process.created_at).toLocaleDateString('pt-BR'),
+      render: (process) => formatDate(process.created_at),
     },
   ];
 
@@ -647,22 +706,50 @@ export default function Processes() {
       <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {/* Filtro por Cliente */}
-          <div>
+          <div className="relative">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Cliente
             </label>
-            <select
-              value={filters.clientId}
-              onChange={(e) => setFilters({ ...filters, clientId: e.target.value })}
+            <input
+              type="text"
+              value={filterClientSearch}
+              onChange={(e) => {
+                setFilterClientSearch(e.target.value);
+                setShowFilterClientDropdown(true);
+                setSelectedFilterClientIndex(-1);
+                if (!e.target.value) {
+                  setFilters({ ...filters, clientId: '' });
+                }
+              }}
+              onFocus={() => setShowFilterClientDropdown(true)}
+              onBlur={() => setTimeout(() => setShowFilterClientDropdown(false), 200)}
+              onKeyDown={handleFilterClientKeyDown}
+              placeholder="Digite ou cole o cliente..."
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-            >
-              <option value="">Todos</option>
-              {clients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.code} - {client.name}
-                </option>
-              ))}
-            </select>
+            />
+            {showFilterClientDropdown && filterClientSearch && filteredFilterClients.length > 0 && (
+              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                {filteredFilterClients.map((client, index) => (
+                  <button
+                    key={client.id}
+                    type="button"
+                    onClick={() => handleFilterClientSelect(client)}
+                    className={`w-full px-3 py-2 text-left transition-colors ${
+                      index === selectedFilterClientIndex
+                        ? 'bg-blue-100'
+                        : 'hover:bg-gray-100'
+                    }`}
+                  >
+                    <div className="font-semibold text-gray-900 text-sm">
+                      {client.code} - {client.name}
+                    </div>
+                    {client.cnpj && (
+                      <div className="text-xs text-gray-500">{client.cnpj}</div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Filtro por Status */}
@@ -679,22 +766,54 @@ export default function Processes() {
               <option value="open">Aberto</option>
               <option value="finalized">Finalizado</option>
               <option value="billed">Faturado</option>
-              <option value="pending_billing">🚨 Pendentes de Cobrança</option>
             </select>
           </div>
 
           {/* Filtro por Referência */}
-          <div>
+          <div className="relative">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Referência
             </label>
             <input
               type="text"
-              value={filters.reference}
-              onChange={(e) => setFilters({ ...filters, reference: e.target.value })}
+              value={filterReferenceSearch}
+              onChange={(e) => {
+                setFilterReferenceSearch(e.target.value);
+                setShowFilterReferenceDropdown(true);
+                setSelectedFilterReferenceIndex(-1);
+                if (!e.target.value) {
+                  setFilters({ ...filters, reference: '' });
+                }
+              }}
+              onFocus={() => setShowFilterReferenceDropdown(true)}
+              onBlur={() => setTimeout(() => setShowFilterReferenceDropdown(false), 200)}
+              onKeyDown={handleFilterReferenceKeyDown}
+              placeholder="Digite ou cole a referência..."
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-              placeholder="Buscar por referência"
             />
+            {showFilterReferenceDropdown && filterReferenceSearch && filteredFilterReferences.length > 0 && (
+              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                {filteredFilterReferences.map((process, index) => (
+                  <button
+                    key={process.id}
+                    type="button"
+                    onClick={() => handleFilterReferenceSelect(process)}
+                    className={`w-full px-3 py-2 text-left transition-colors ${
+                      index === selectedFilterReferenceIndex
+                        ? 'bg-blue-100'
+                        : 'hover:bg-gray-100'
+                    }`}
+                  >
+                    <div className="font-semibold text-gray-900 font-mono text-sm">
+                      {process.reference}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {process.client?.name} ({process.client?.code})
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Botões de Ação */}
@@ -963,7 +1082,7 @@ export default function Processes() {
                   Data de Criação
                 </label>
                 <p className="text-gray-900">
-                  {new Date(viewingProcess.created_at).toLocaleDateString('pt-BR')}
+                  {formatDate(viewingProcess.created_at)}
                 </p>
               </div>
 
@@ -973,7 +1092,7 @@ export default function Processes() {
                     Data de Finalização
                   </label>
                   <p className="text-gray-900">
-                    {new Date(viewingProcess.finalized_at).toLocaleDateString('pt-BR')}
+                    {formatDate(viewingProcess.finalized_at)}
                   </p>
                 </div>
               )}
@@ -984,7 +1103,7 @@ export default function Processes() {
                     Data de Faturamento
                   </label>
                   <p className="text-gray-900">
-                    {new Date(viewingProcess.billed_at).toLocaleDateString('pt-BR')}
+                    {formatDate(viewingProcess.billed_at)}
                   </p>
                 </div>
               )}

@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { useToast } from '../../contexts/ToastContext';
 import type { Client, Transaction } from '../../types/database';
 import { getClientById } from '../../services/clientService';
@@ -98,6 +101,129 @@ export default function ClientDetails() {
     });
   };
 
+  // Format date - evita problema de timezone
+  const formatDate = (date: string): string => {
+    const [year, month, day] = date.split('T')[0].split('-');
+    return new Date(Number(year), Number(month) - 1, Number(day)).toLocaleDateString('pt-BR');
+  };
+
+  // Exportar para Excel
+  const exportToExcel = () => {
+    if (!client) return;
+
+    const balance = totalDeposits - totalExpenses;
+
+    // Dados do cliente
+    const clientInfo = [
+      ['EXTRATO DO CLIENTE'],
+      [''],
+      ['Código:', client.code],
+      ['Nome:', client.name],
+      ['CNPJ:', client.cnpj || '-'],
+      ['Email:', client.email || '-'],
+      ['Telefone:', client.phone || '-'],
+      ['Status:', client.active ? 'Ativo' : 'Inativo'],
+      [''],
+      ['RESUMO FINANCEIRO'],
+      ['Total Depósitos:', totalDeposits],
+      ['Total Despesas:', totalExpenses],
+      ['Saldo Atual:', balance],
+      [''],
+      ['MOVIMENTAÇÕES'],
+    ];
+
+    // Cabeçalhos das transações
+    const headers = [['Data', 'Tipo', 'Processo/Referência', 'Valor', 'Descrição']];
+
+    // Dados das transações
+    const transactionsData = transactions.map((t) => [
+      formatDate(t.date),
+      t.type === 'deposit' ? 'Depósito' : 'Despesa',
+      t.type === 'deposit' ? '-' : t.process?.reference || '-',
+      t.amount,
+      t.description || '-',
+    ]);
+
+    // Combinar tudo
+    const allData = [...clientInfo, ...headers, ...transactionsData];
+
+    const ws = XLSX.utils.aoa_to_sheet(allData);
+
+    // Ajustar largura das colunas
+    ws['!cols'] = [
+      { wch: 20 }, // Data/Label
+      { wch: 15 }, // Tipo/Valor
+      { wch: 25 }, // Processo
+      { wch: 15 }, // Valor
+      { wch: 30 }, // Descrição
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Extrato');
+
+    const fileName = `extrato_cliente_${client.code}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    showToast('Extrato exportado com sucesso!', 'success');
+  };
+
+  // Exportar para PDF
+  const exportToPDF = () => {
+    if (!client) return;
+
+    const balance = totalDeposits - totalExpenses;
+
+    const doc = new jsPDF();
+
+    // Cabeçalho
+    doc.setFontSize(18);
+    doc.text('Extrato do Cliente', 14, 15);
+
+    doc.setFontSize(10);
+    doc.text(`Gerado em: ${formatDate(new Date().toISOString())}`, 14, 22);
+
+    // Informações do cliente
+    doc.setFontSize(12);
+    doc.text('Informações do Cliente', 14, 32);
+
+    doc.setFontSize(10);
+    doc.text(`Código: ${client.code}`, 14, 40);
+    doc.text(`Nome: ${client.name}`, 14, 46);
+    if (client.cnpj) doc.text(`CNPJ: ${client.cnpj}`, 14, 52);
+    if (client.email) doc.text(`Email: ${client.email}`, 14, 58);
+    if (client.phone) doc.text(`Telefone: ${client.phone}`, 14, 64);
+
+    // Resumo financeiro
+    const startY = client.cnpj && client.email && client.phone ? 74 : 68;
+    doc.setFontSize(12);
+    doc.text('Resumo Financeiro', 14, startY);
+
+    doc.setFontSize(10);
+    doc.text(`Total Depósitos: R$ ${formatCurrency(totalDeposits)}`, 14, startY + 8);
+    doc.text(`Total Despesas: R$ ${formatCurrency(totalExpenses)}`, 14, startY + 14);
+    doc.text(`Saldo Atual: R$ ${formatCurrency(balance)}`, 14, startY + 20);
+
+    // Tabela de transações
+    const tableData = transactions.map((t) => [
+      formatDate(t.date),
+      t.type === 'deposit' ? 'Depósito' : 'Despesa',
+      t.type === 'deposit' ? '-' : t.process?.reference || '-',
+      `R$ ${formatCurrency(t.amount)}`,
+    ]);
+
+    autoTable(doc, {
+      startY: startY + 28,
+      head: [['Data', 'Tipo', 'Processo', 'Valor']],
+      body: tableData,
+      theme: 'striped',
+      headStyles: { fillColor: [37, 99, 235] },
+      styles: { fontSize: 9 },
+    });
+
+    const fileName = `extrato_cliente_${client.code}_${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
+    showToast('Extrato PDF exportado com sucesso!', 'success');
+  };
+
   const balance = totalDeposits - totalExpenses;
 
   if (loading) {
@@ -139,10 +265,44 @@ export default function ClientDetails() {
           Voltar para Clientes
         </button>
 
-        <h1 className="text-2xl font-bold text-gray-900">Detalhes do Cliente</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Saldo, depósitos e despesas
-        </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Detalhes do Cliente</h1>
+            <p className="mt-1 text-sm text-gray-600">
+              Saldo, depósitos e despesas
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={exportToExcel}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+              Excel
+            </button>
+            <button
+              onClick={exportToPDF}
+              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                />
+              </svg>
+              PDF
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Informações do Cliente */}
@@ -265,7 +425,7 @@ export default function ClientDetails() {
                 {transactions.map((transaction) => (
                   <tr key={transaction.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(transaction.date).toLocaleDateString('pt-BR')}
+                      {formatDate(transaction.date)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span

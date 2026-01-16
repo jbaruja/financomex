@@ -79,6 +79,16 @@ export default function Financial() {
     process: '',
   });
 
+  // Filter process search (autocomplete)
+  const [filterProcessSearch, setFilterProcessSearch] = useState('');
+  const [showFilterProcessDropdown, setShowFilterProcessDropdown] = useState(false);
+  const [selectedFilterProcessIndex, setSelectedFilterProcessIndex] = useState(-1);
+
+  // Filter client search (autocomplete)
+  const [filterClientSearch, setFilterClientSearch] = useState('');
+  const [showFilterClientDropdown, setShowFilterClientDropdown] = useState(false);
+  const [selectedFilterClientIndex, setSelectedFilterClientIndex] = useState(-1);
+
   // Totals
   const [totalDeposits, setTotalDeposits] = useState(0);
   const [totalExpenses, setTotalExpenses] = useState(0);
@@ -182,6 +192,12 @@ export default function Financial() {
     });
   };
 
+  // Format date - evita problema de timezone
+  const formatDate = (date: string): string => {
+    const [year, month, day] = date.split('T')[0].split('-');
+    return new Date(Number(year), Number(month) - 1, Number(day)).toLocaleDateString('pt-BR');
+  };
+
   const parseCurrency = (value: string): number => {
     const cleaned = value.replace(/\./g, '').replace(',', '.');
     return parseFloat(cleaned) || 0;
@@ -223,7 +239,7 @@ export default function Financial() {
     );
   });
 
-  // Filter processes by search
+  // Filter processes by search (show all, including billed to show warning)
   const filteredProcesses = processes.filter((process) => {
     const search = processSearch.toLowerCase();
     return (
@@ -241,10 +257,96 @@ export default function Financial() {
   };
 
   const handleProcessSelect = (process: ProcessWithRelations) => {
+    // Verificar se o processo está faturado
+    if (process.status === 'billed') {
+      showToast(`❌ Esta referência está FATURADA e não pode receber mais despesas`, 'error');
+      setProcessSearch('');
+      setShowProcessDropdown(false);
+      setSelectedProcessIndex(-1);
+      return;
+    }
+
     setExpenseForm({ ...expenseForm, process_id: process.id });
     setProcessSearch(`${process.reference} - ${process.client?.name || ''}`);
     setShowProcessDropdown(false);
     setSelectedProcessIndex(-1);
+  };
+
+  // Filter processes for filter autocomplete
+  const filteredFilterProcesses = processes.filter((process) => {
+    const search = filterProcessSearch.toLowerCase();
+    return (
+      process.reference.toLowerCase().includes(search) ||
+      process.client?.name.toLowerCase().includes(search) ||
+      process.client?.code.toLowerCase().includes(search)
+    );
+  });
+
+  const handleFilterProcessSelect = (process: ProcessWithRelations) => {
+    setFilters({ ...filters, process: process.id });
+    setFilterProcessSearch(`${process.reference} - ${process.client?.name || ''}`);
+    setShowFilterProcessDropdown(false);
+    setSelectedFilterProcessIndex(-1);
+  };
+
+  const handleFilterProcessKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showFilterProcessDropdown || filteredFilterProcesses.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedFilterProcessIndex((prev) =>
+        prev < filteredFilterProcesses.length - 1 ? prev + 1 : prev
+      );
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedFilterProcessIndex((prev) => (prev > 0 ? prev - 1 : -1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (selectedFilterProcessIndex >= 0 && selectedFilterProcessIndex < filteredFilterProcesses.length) {
+        handleFilterProcessSelect(filteredFilterProcesses[selectedFilterProcessIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setShowFilterProcessDropdown(false);
+      setSelectedFilterProcessIndex(-1);
+    }
+  };
+
+  // Filter clients for filter autocomplete
+  const filteredFilterClients = clients.filter((client) => {
+    const search = filterClientSearch.toLowerCase();
+    return (
+      client.code.toLowerCase().includes(search) ||
+      client.name.toLowerCase().includes(search)
+    );
+  });
+
+  const handleFilterClientSelect = (client: Client) => {
+    setFilters({ ...filters, client: client.id });
+    setFilterClientSearch(`${client.code} - ${client.name}`);
+    setShowFilterClientDropdown(false);
+    setSelectedFilterClientIndex(-1);
+  };
+
+  const handleFilterClientKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showFilterClientDropdown || filteredFilterClients.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedFilterClientIndex((prev) =>
+        prev < filteredFilterClients.length - 1 ? prev + 1 : prev
+      );
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedFilterClientIndex((prev) => (prev > 0 ? prev - 1 : -1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (selectedFilterClientIndex >= 0 && selectedFilterClientIndex < filteredFilterClients.length) {
+        handleFilterClientSelect(filteredFilterClients[selectedFilterClientIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setShowFilterClientDropdown(false);
+      setSelectedFilterClientIndex(-1);
+    }
   };
 
   const handleClientKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -361,6 +463,15 @@ export default function Financial() {
       if (!depositForm.date) errors.date = 'Data é obrigatória';
     } else {
       if (!expenseForm.process_id) errors.process = 'Processo é obrigatório';
+
+      // Validar se o processo selecionado está faturado
+      if (expenseForm.process_id) {
+        const selectedProcess = processes.find(p => p.id === expenseForm.process_id);
+        if (selectedProcess?.status === 'billed') {
+          errors.process = '❌ Esta referência está FATURADA e não pode receber mais despesas';
+        }
+      }
+
       if (!expenseForm.category_id) errors.category = 'Categoria é obrigatória';
       if (!expenseForm.bank_account_id) errors.bank_account = 'Conta bancária é obrigatória';
       if (expenseForm.amount <= 0) errors.amount = 'Valor deve ser maior que zero';
@@ -740,27 +851,39 @@ export default function Financial() {
                       {/* Dropdown */}
                       {showProcessDropdown && processSearch && filteredProcesses.length > 0 && (
                         <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                          {filteredProcesses.map((process, index) => (
-                            <button
-                              key={process.id}
-                              type="button"
-                              onClick={() => handleProcessSelect(process)}
-                              className={`w-full px-4 py-2 text-left transition-colors flex items-center justify-between ${
-                                index === selectedProcessIndex
-                                  ? 'bg-blue-100'
-                                  : 'hover:bg-gray-100'
-                              }`}
-                            >
-                              <div>
-                                <div className="font-semibold text-gray-900 font-mono">
-                                  {process.reference}
+                          {filteredProcesses.map((process, index) => {
+                            const isBilled = process.status === 'billed';
+                            return (
+                              <button
+                                key={process.id}
+                                type="button"
+                                onClick={() => handleProcessSelect(process)}
+                                className={`w-full px-4 py-2 text-left transition-colors flex items-center justify-between ${
+                                  isBilled
+                                    ? 'bg-red-50 hover:bg-red-100 cursor-pointer'
+                                    : index === selectedProcessIndex
+                                    ? 'bg-blue-100'
+                                    : 'hover:bg-gray-100'
+                                }`}
+                              >
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold text-gray-900 font-mono">
+                                      {process.reference}
+                                    </span>
+                                    {isBilled && (
+                                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                                        FATURADO
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-sm text-gray-500">
+                                    {process.client?.name} ({process.client?.code})
+                                  </div>
                                 </div>
-                                <div className="text-sm text-gray-500">
-                                  {process.client?.name} ({process.client?.code})
-                                </div>
-                              </div>
-                            </button>
-                          ))}
+                              </button>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -899,7 +1022,7 @@ export default function Financial() {
             Saldo
           </p>
           <p className={`text-2xl font-bold ${balance >= 0 ? 'text-blue-800' : 'text-yellow-800'}`}>
-            R$ {formatCurrency(Math.abs(balance))}
+            {balance >= 0 ? '' : '-'} R$ {formatCurrency(Math.abs(balance))}
           </p>
         </div>
       </div>
@@ -941,44 +1064,104 @@ export default function Financial() {
             />
           </div>
 
-          <div>
+          <div className="relative">
             <label className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
-            <select
-              value={filters.client}
-              onChange={(e) => setFilters({ ...filters, client: e.target.value })}
+            <input
+              type="text"
+              value={filterClientSearch}
+              onChange={(e) => {
+                setFilterClientSearch(e.target.value);
+                setShowFilterClientDropdown(true);
+                setSelectedFilterClientIndex(-1);
+                if (!e.target.value) {
+                  setFilters({ ...filters, client: '' });
+                }
+              }}
+              onFocus={() => setShowFilterClientDropdown(true)}
+              onBlur={() => setTimeout(() => setShowFilterClientDropdown(false), 200)}
+              onKeyDown={handleFilterClientKeyDown}
+              placeholder="Digite ou cole o cliente..."
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-            >
-              <option value="">Todos</option>
-              {clients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.code} - {client.name}
-                </option>
-              ))}
-            </select>
+            />
+            {showFilterClientDropdown && filterClientSearch && filteredFilterClients.length > 0 && (
+              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                {filteredFilterClients.map((client, index) => (
+                  <button
+                    key={client.id}
+                    type="button"
+                    onClick={() => handleFilterClientSelect(client)}
+                    className={`w-full px-3 py-2 text-left transition-colors ${
+                      index === selectedFilterClientIndex
+                        ? 'bg-blue-100'
+                        : 'hover:bg-gray-100'
+                    }`}
+                  >
+                    <div className="font-semibold text-gray-900 text-sm">
+                      {client.code} - {client.name}
+                    </div>
+                    {client.cnpj && (
+                      <div className="text-xs text-gray-500">{client.cnpj}</div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Processo</label>
-            <select
-              value={filters.process}
-              onChange={(e) => setFilters({ ...filters, process: e.target.value })}
+          <div className="relative">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Referência</label>
+            <input
+              type="text"
+              value={filterProcessSearch}
+              onChange={(e) => {
+                setFilterProcessSearch(e.target.value);
+                setShowFilterProcessDropdown(true);
+                setSelectedFilterProcessIndex(-1);
+                if (!e.target.value) {
+                  setFilters({ ...filters, process: '' });
+                }
+              }}
+              onFocus={() => setShowFilterProcessDropdown(true)}
+              onBlur={() => setTimeout(() => setShowFilterProcessDropdown(false), 200)}
+              onKeyDown={handleFilterProcessKeyDown}
+              placeholder="Digite ou cole a referência..."
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-            >
-              <option value="">Todos</option>
-              {processes.map((process) => (
-                <option key={process.id} value={process.id}>
-                  {process.reference}
-                </option>
-              ))}
-            </select>
+            />
+            {showFilterProcessDropdown && filterProcessSearch && filteredFilterProcesses.length > 0 && (
+              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                {filteredFilterProcesses.map((process, index) => (
+                  <button
+                    key={process.id}
+                    type="button"
+                    onClick={() => handleFilterProcessSelect(process)}
+                    className={`w-full px-3 py-2 text-left transition-colors flex items-center justify-between ${
+                      index === selectedFilterProcessIndex
+                        ? 'bg-blue-100'
+                        : 'hover:bg-gray-100'
+                    }`}
+                  >
+                    <div>
+                      <div className="font-semibold text-gray-900 font-mono text-sm">
+                        {process.reference}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {process.client?.name} ({process.client?.code})
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
         <div className="flex justify-end mt-4">
           <button
-            onClick={() =>
-              setFilters({ type: '', startDate: '', endDate: '', client: '', process: '' })
-            }
+            onClick={() => {
+              setFilters({ type: '', startDate: '', endDate: '', client: '', process: '' });
+              setFilterClientSearch('');
+              setFilterProcessSearch('');
+            }}
             className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors text-sm"
           >
             Limpar Filtros
@@ -1053,7 +1236,7 @@ export default function Financial() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(transaction.date).toLocaleDateString('pt-BR')}
+                      {formatDate(transaction.date)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {transaction.type === 'deposit' ? (

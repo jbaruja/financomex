@@ -160,20 +160,20 @@ export default function Dashboard() {
             <span className="text-2xl">✅</span>
           </div>
           <p className="text-3xl font-bold text-green-600">{metrics?.finalizedProcesses || 0}</p>
-          <p className="text-sm text-gray-500 mt-2">Aguardando cobrança</p>
+          <p className="text-sm text-gray-500 mt-2">Processos completos</p>
         </div>
 
-        {/* ALERTA CRÍTICO: Processos Finalizados SEM Cobrança */}
+        {/* ALERTA: Processos Não Faturados */}
         <div
           className="bg-red-50 border-2 border-red-200 rounded-lg shadow p-6 hover:shadow-md transition-shadow cursor-pointer"
           onClick={() => navigate('/processos')}
         >
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-red-700">🚨 SEM Cobrança</h3>
-            <span className="text-2xl">⚠️</span>
+            <h3 className="text-sm font-medium text-red-700">⚠️ Não Faturados</h3>
+            <span className="text-2xl">📋</span>
           </div>
           <p className="text-3xl font-bold text-red-600">{metrics?.finalizedWithoutBilling || 0}</p>
-          <p className="text-sm text-red-600 mt-2 font-medium">Processos finalizados não cobrados</p>
+          <p className="text-sm text-red-600 mt-2 font-medium">Processos finalizados aguardando faturamento</p>
         </div>
 
         {/* Clientes Ativos */}
@@ -217,7 +217,7 @@ export default function Dashboard() {
             <span className="text-2xl">💵</span>
           </div>
           <p className={`text-3xl font-bold ${balance >= 0 ? 'text-blue-800' : 'text-yellow-800'}`}>
-            R$ {formatCurrency(Math.abs(balance))}
+            {balance >= 0 ? '' : '-'} R$ {formatCurrency(Math.abs(balance))}
           </p>
         </div>
       </div>
