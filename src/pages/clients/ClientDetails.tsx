@@ -200,7 +200,7 @@ export default function ClientDetails() {
     doc.setFontSize(10);
     doc.text(`Total Depósitos: R$ ${formatCurrency(totalDeposits)}`, 14, startY + 8);
     doc.text(`Total Despesas: R$ ${formatCurrency(totalExpenses)}`, 14, startY + 14);
-    doc.text(`Saldo Atual: R$ ${formatCurrency(balance)}`, 14, startY + 20);
+    doc.text(`Saldo Atual: ${balance >= 0 ? '' : '-'} R$ ${formatCurrency(Math.abs(balance))}`, 14, startY + 20);
 
     // Tabela de transações
     const tableData = transactions.map((t) => [
@@ -366,7 +366,7 @@ export default function ClientDetails() {
               balance >= 0 ? 'text-blue-800' : 'text-yellow-800'
             }`}
           >
-            R$ {formatCurrency(Math.abs(balance))}
+            {balance >= 0 ? '' : '-'} R$ {formatCurrency(Math.abs(balance))}
           </p>
         </div>
       </div>

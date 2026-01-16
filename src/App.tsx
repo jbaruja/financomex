@@ -38,7 +38,6 @@ function App() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="clientes" element={<Clients />} />
             <Route path="clientes/:id" element={<ClientDetails />} />
-            <Route path="importadoras" element={<Importers />} />
             <Route path="processos" element={<Processes />} />
             <Route path="processos/:id" element={<ProcessDetails />} />
             <Route path="financeiro" element={<Financial />} />
@@ -46,6 +45,7 @@ function App() {
             <Route path="configuracoes" element={<Settings />}>
               <Route path="contas" element={<BankAccounts />} />
               <Route path="categorias" element={<ExpenseCategories />} />
+              <Route path="importadoras" element={<Importers />} />
             </Route>
           </Route>
 

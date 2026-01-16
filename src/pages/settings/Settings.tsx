@@ -9,13 +9,14 @@ export default function Settings() {
   const navItems = [
     { name: 'Contas Bancárias', path: '/configuracoes/contas', icon: '🏦' },
     { name: 'Categorias de Despesa', path: '/configuracoes/categorias', icon: '📑' },
+    { name: 'Importadoras', path: '/configuracoes/importadoras', icon: '🏢' },
   ];
 
   if (isRootPath) {
     return (
       <div>
         <h1 className="text-2xl font-bold text-gray-900 mb-6">Configurações</h1>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {navItems.map((item) => (
             <NavLink
               key={item.path}
