@@ -104,12 +104,25 @@ export default function Processes() {
   const applyFilters = async () => {
     try {
       setLoading(true);
-      const filtered = await searchProcesses({
-        clientId: filters.clientId || undefined,
-        status: filters.status || undefined,
-        reference: filters.reference || undefined,
-      });
-      setProcesses(filtered);
+
+      // Se o filtro é "pending_billing", buscar processos finalizados e filtrar client-side
+      if (filters.status === 'pending_billing') {
+        const filtered = await searchProcesses({
+          clientId: filters.clientId || undefined,
+          status: 'finalized',
+          reference: filters.reference || undefined,
+        });
+        // Filtrar apenas os que não têm billed_at
+        const pendingBilling = filtered.filter(p => !p.billed_at);
+        setProcesses(pendingBilling);
+      } else {
+        const filtered = await searchProcesses({
+          clientId: filters.clientId || undefined,
+          status: filters.status || undefined,
+          reference: filters.reference || undefined,
+        });
+        setProcesses(filtered);
+      }
     } catch (error: any) {
       showToast(error.message || 'Erro ao filtrar processos', 'error');
     } finally {
@@ -434,13 +447,22 @@ export default function Processes() {
   };
 
   // Função para obter badge de status
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (process: ProcessWithRelations) => {
+    // Se o processo está finalizado mas não foi cobrado, mostrar badge vermelho
+    if (process.status === 'finalized' && !process.billed_at) {
+      return (
+        <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-300">
+          🚨 Aguardando Cobrança
+        </span>
+      );
+    }
+
     const badges = {
       open: { label: 'Aberto', className: 'bg-blue-100 text-blue-800' },
       finalized: { label: 'Finalizado', className: 'bg-green-100 text-green-800' },
       billed: { label: 'Faturado', className: 'bg-purple-100 text-purple-800' },
     };
-    const badge = badges[status as keyof typeof badges] || badges.open;
+    const badge = badges[process.status as keyof typeof badges] || badges.open;
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-medium ${badge.className}`}>
         {badge.label}
@@ -475,7 +497,7 @@ export default function Processes() {
     {
       key: 'status',
       label: 'Status',
-      render: (process) => getStatusBadge(process.status),
+      render: (process) => getStatusBadge(process),
     },
     {
       key: 'created_at',
@@ -657,6 +679,7 @@ export default function Processes() {
               <option value="open">Aberto</option>
               <option value="finalized">Finalizado</option>
               <option value="billed">Faturado</option>
+              <option value="pending_billing">🚨 Pendentes de Cobrança</option>
             </select>
           </div>
 
@@ -905,7 +928,7 @@ export default function Processes() {
             {/* Status */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-              {getStatusBadge(viewingProcess.status)}
+              {getStatusBadge(viewingProcess)}
             </div>
 
             {/* Cliente */}

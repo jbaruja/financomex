@@ -6,11 +6,28 @@ import {
   getDashboardMetrics,
   getTopClientsByBalance,
   getFinalizedWithoutBilling,
+  getFinancialTrend,
+  getProcessesByStatus,
   type DashboardMetrics,
   type ClientWithBalance,
+  type FinancialTrendData,
+  type ProcessStatusCount,
 } from '../../services/dashboardService';
 import { getDeposits } from '../../services/depositService';
 import { getExpenses } from '../../services/expenseService';
+import {
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -19,6 +36,8 @@ export default function Dashboard() {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [topClients, setTopClients] = useState<ClientWithBalance[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
+  const [financialTrend, setFinancialTrend] = useState<FinancialTrendData[]>([]);
+  const [processStatus, setProcessStatus] = useState<ProcessStatusCount[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,15 +48,19 @@ export default function Dashboard() {
     try {
       setLoading(true);
 
-      const [metricsData, topClientsData, depositsData, expensesData] = await Promise.all([
+      const [metricsData, topClientsData, depositsData, expensesData, trendData, statusData] = await Promise.all([
         getDashboardMetrics(),
         getTopClientsByBalance(),
         getDeposits(),
         getExpenses(),
+        getFinancialTrend(),
+        getProcessesByStatus(),
       ]);
 
       setMetrics(metricsData);
       setTopClients(topClientsData);
+      setFinancialTrend(trendData);
+      setProcessStatus(statusData);
 
       // Unificar depósitos e despesas para últimas movimentações
       const depositTransactions: Transaction[] = depositsData.map((d) => ({
@@ -196,6 +219,82 @@ export default function Dashboard() {
           <p className={`text-3xl font-bold ${balance >= 0 ? 'text-blue-800' : 'text-yellow-800'}`}>
             R$ {formatCurrency(Math.abs(balance))}
           </p>
+        </div>
+      </div>
+
+      {/* Gráficos */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* Gráfico de Evolução Financeira */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            Evolução Financeira (Últimos 6 Meses)
+          </h2>
+          {financialTrend.length === 0 ? (
+            <div className="h-64 flex items-center justify-center text-gray-500">
+              Sem dados suficientes para exibir o gráfico
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={financialTrend}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip
+                  formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="deposits"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  name="Depósitos"
+                  dot={{ fill: '#10b981', r: 4 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="expenses"
+                  stroke="#ef4444"
+                  strokeWidth={2}
+                  name="Despesas"
+                  dot={{ fill: '#ef4444', r: 4 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Gráfico de Distribuição de Processos */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            Distribuição de Processos por Status
+          </h2>
+          {processStatus.length === 0 ? (
+            <div className="h-64 flex items-center justify-center text-gray-500">
+              Nenhum processo cadastrado
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={processStatus}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ label, percent }) => `${label}: ${(percent * 100).toFixed(0)}%`}
+                  outerRadius={100}
+                  fill="#8884d8"
+                  dataKey="count"
+                >
+                  {processStatus.map((entry, index) => {
+                    const colors = ['#3b82f6', '#10b981', '#f59e0b'];
+                    return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
+                  })}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
 

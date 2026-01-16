@@ -152,3 +152,113 @@ export async function getFinalizedWithoutBilling() {
   if (error) throw error;
   return data;
 }
+
+/**
+ * Interface para dados de tendência financeira
+ */
+export interface FinancialTrendData {
+  month: string;
+  deposits: number;
+  expenses: number;
+}
+
+/**
+ * Busca tendência financeira dos últimos 6 meses
+ */
+export async function getFinancialTrend(): Promise<FinancialTrendData[]> {
+  try {
+    // Data de 6 meses atrás
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const startDate = sixMonthsAgo.toISOString().split('T')[0];
+
+    // Buscar depósitos dos últimos 6 meses
+    const { data: deposits, error: depositsError } = await supabase
+      .from('deposits')
+      .select('date, amount')
+      .gte('date', startDate)
+      .order('date', { ascending: true });
+
+    if (depositsError) throw depositsError;
+
+    // Buscar despesas dos últimos 6 meses
+    const { data: expenses, error: expensesError } = await supabase
+      .from('expenses')
+      .select('date, amount')
+      .gte('date', startDate)
+      .order('date', { ascending: true });
+
+    if (expensesError) throw expensesError;
+
+    // Agrupar por mês
+    const monthlyData = new Map<string, { deposits: number; expenses: number }>();
+
+    // Processar depósitos
+    deposits?.forEach((d) => {
+      const monthKey = new Date(d.date).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+      const current = monthlyData.get(monthKey) || { deposits: 0, expenses: 0 };
+      current.deposits += Number(d.amount);
+      monthlyData.set(monthKey, current);
+    });
+
+    // Processar despesas
+    expenses?.forEach((e) => {
+      const monthKey = new Date(e.date).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+      const current = monthlyData.get(monthKey) || { deposits: 0, expenses: 0 };
+      current.expenses += Number(e.amount);
+      monthlyData.set(monthKey, current);
+    });
+
+    // Converter para array
+    return Array.from(monthlyData.entries()).map(([month, data]) => ({
+      month,
+      deposits: data.deposits,
+      expenses: data.expenses,
+    }));
+  } catch (error) {
+    console.error('Erro ao buscar tendência financeira:', error);
+    throw error;
+  }
+}
+
+/**
+ * Interface para contagem de processos por status
+ */
+export interface ProcessStatusCount {
+  status: string;
+  count: number;
+  label: string;
+}
+
+/**
+ * Busca contagem de processos por status
+ */
+export async function getProcessesByStatus(): Promise<ProcessStatusCount[]> {
+  try {
+    const statuses = [
+      { value: 'open', label: 'Em Aberto' },
+      { value: 'finalized', label: 'Finalizados' },
+      { value: 'billed', label: 'Cobrados' },
+    ];
+
+    const counts = await Promise.all(
+      statuses.map(async (status) => {
+        const { count } = await supabase
+          .from('processes')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', status.value);
+
+        return {
+          status: status.value,
+          count: count || 0,
+          label: status.label,
+        };
+      })
+    );
+
+    return counts.filter((c) => c.count > 0);
+  } catch (error) {
+    console.error('Erro ao buscar processos por status:', error);
+    throw error;
+  }
+}

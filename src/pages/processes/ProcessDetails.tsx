@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useToast } from '../../contexts/ToastContext';
 import type { ProcessWithRelations, ExpenseWithRelations } from '../../types/database';
-import { getProcessById } from '../../services/processService';
+import { getProcessById, billProcess } from '../../services/processService';
 import { getExpensesByProcess } from '../../services/expenseService';
 
 export default function ProcessDetails() {
@@ -14,6 +14,9 @@ export default function ProcessDetails() {
   const [expenses, setExpenses] = useState<ExpenseWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalExpenses, setTotalExpenses] = useState(0);
+  const [showBillingModal, setShowBillingModal] = useState(false);
+  const [billingNotes, setBillingNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -66,6 +69,21 @@ export default function ProcessDetails() {
     );
   };
 
+  const handleBillProcess = async () => {
+    try {
+      setSubmitting(true);
+      await billProcess(id!, billingNotes || undefined);
+      showToast('Processo marcado como cobrado com sucesso!', 'success');
+      setShowBillingModal(false);
+      setBillingNotes('');
+      await loadData(); // Recarregar dados
+    } catch (error: any) {
+      showToast(error.message || 'Erro ao marcar processo como cobrado', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -105,10 +123,27 @@ export default function ProcessDetails() {
           Voltar para Processos
         </button>
 
-        <h1 className="text-2xl font-bold text-gray-900">Detalhes do Processo</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Total de despesas e extrato
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Detalhes do Processo</h1>
+            <p className="mt-1 text-sm text-gray-600">
+              Total de despesas e extrato
+            </p>
+          </div>
+
+          {/* Botão Marcar como Cobrado - só aparece se finalizado e não cobrado */}
+          {process.status === 'finalized' && !process.billed_at && (
+            <button
+              onClick={() => setShowBillingModal(true)}
+              className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Marcar como Cobrado
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Informações do Processo */}
@@ -250,6 +285,74 @@ export default function ProcessDetails() {
           )}
         </div>
       </div>
+
+      {/* Modal de Cobrança */}
+      {showBillingModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Marcar Processo como Cobrado
+            </h3>
+
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">
+                Processo: <span className="font-mono font-semibold">{process.reference}</span>
+              </p>
+              <p className="text-sm text-gray-600 mb-2">
+                Cliente: <span className="font-semibold">{process.client?.name}</span>
+              </p>
+              <p className="text-sm text-gray-600">
+                Total de Despesas: <span className="font-semibold text-red-700">R$ {formatCurrency(totalExpenses)}</span>
+              </p>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Observações (opcional)
+              </label>
+              <textarea
+                value={billingNotes}
+                onChange={(e) => setBillingNotes(e.target.value)}
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Adicione observações sobre a cobrança..."
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowBillingModal(false);
+                  setBillingNotes('');
+                }}
+                disabled={submitting}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleBillProcess}
+                disabled={submitting}
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {submitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                    Processando...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Confirmar Cobrança
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
