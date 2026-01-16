@@ -1,7 +1,5 @@
-import { useState, useEffect, FormEvent, ChangeEvent } from 'react';
+import { useState, useEffect, type FormEvent, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import DataTable from '../../components/common/DataTable';
-import type { Column } from '../../components/common/DataTable';
 import Modal from '../../components/common/Modal';
 import { useToast } from '../../contexts/ToastContext';
 import type { Client, ClientInput } from '../../types/database';

@@ -228,6 +228,7 @@ export interface ProcessStatusCount {
   status: string;
   count: number;
   label: string;
+  [key: string]: string | number;
 }
 
 /**

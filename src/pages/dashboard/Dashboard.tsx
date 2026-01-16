@@ -5,7 +5,6 @@ import type { Transaction } from '../../types/database';
 import {
   getDashboardMetrics,
   getTopClientsByBalance,
-  getFinalizedWithoutBilling,
   getFinancialTrend,
   getProcessesByStatus,
   type DashboardMetrics,
@@ -240,7 +239,7 @@ export default function Dashboard() {
                 <XAxis dataKey="month" />
                 <YAxis />
                 <Tooltip
-                  formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  formatter={(value: number | undefined) => value ? `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ 0,00'}
                 />
                 <Legend />
                 <Line
@@ -281,9 +280,25 @@ export default function Dashboard() {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ label, percent }) => {
-                    if (!percent) return null;
-                    return `${label}: ${(percent * 100).toFixed(0)}%`;
+                  label={(props) => {
+                    const { cx, cy, midAngle, innerRadius, outerRadius, percent, index } = props;
+                    if (typeof percent !== 'number') return null;
+
+                    const radius = Number(innerRadius) + (Number(outerRadius) - Number(innerRadius)) * 0.5;
+                    const x = Number(cx) + radius * Math.cos(-Number(midAngle) * Math.PI / 180);
+                    const y = Number(cy) + radius * Math.sin(-Number(midAngle) * Math.PI / 180);
+
+                    return (
+                      <text
+                        x={x}
+                        y={y}
+                        fill="white"
+                        textAnchor={x > Number(cx) ? 'start' : 'end'}
+                        dominantBaseline="central"
+                      >
+                        {`${(percent * 100).toFixed(0)}%`}
+                      </text>
+                    );
                   }}
                   outerRadius={100}
                   fill="#8884d8"
