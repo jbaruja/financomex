@@ -42,10 +42,10 @@ export default function Login() {
       <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Sistema Financeiro COMEX
+            SCCOMEX
           </h1>
           <p className="text-gray-600">
-            Controle Financeiro para Operações de Comércio Exterior
+            Controle Financeiro
           </p>
         </div>
 
@@ -105,9 +105,7 @@ export default function Login() {
           </button>
         </form>
 
-        <div className="mt-6 text-center text-sm text-gray-500">
-          Fase 1 - Autenticação Implementada
-        </div>
+        
       </div>
     </div>
   );
