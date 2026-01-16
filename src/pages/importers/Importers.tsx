@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import DataTable from '../../components/common/DataTable';
 import type { Column } from '../../components/common/DataTable';
 import Modal from '../../components/common/Modal';

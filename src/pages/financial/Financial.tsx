@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { useToast } from '../../contexts/ToastContext';
 import type {
   TransactionType,
@@ -89,9 +89,9 @@ export default function Financial() {
   const [showFilterClientDropdown, setShowFilterClientDropdown] = useState(false);
   const [selectedFilterClientIndex, setSelectedFilterClientIndex] = useState(-1);
 
-  // Totals
-  const [totalDeposits, setTotalDeposits] = useState(0);
-  const [totalExpenses, setTotalExpenses] = useState(0);
+  // Totals (kept for future use)
+  const [_totalDeposits, setTotalDeposits] = useState(0);
+  const [_totalExpenses, setTotalExpenses] = useState(0);
 
   // Amount display
   const [amountDisplay, setAmountDisplay] = useState('0,00');

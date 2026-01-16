@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent, ChangeEvent } from 'react';
+import { useState, useEffect, type FormEvent, type ChangeEvent } from 'react';
 import DataTable from '../../components/common/DataTable';
 import type { Column } from '../../components/common/DataTable';
 import Modal from '../../components/common/Modal';
@@ -303,7 +303,7 @@ export default function BankAccounts() {
                 onChange={handleBalanceChange}
                 onBlur={() => {
                   // Formata ao sair do campo
-                  setBalanceDisplay(formatCurrency(formData.balance));
+                  setBalanceDisplay(formatCurrency(formData.balance ?? 0));
                 }}
                 className="w-full pl-12 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono"
                 placeholder="0,00"

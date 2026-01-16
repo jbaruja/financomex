@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent, ChangeEvent, useRef } from 'react';
+import { useState, useEffect, type FormEvent, type ChangeEvent, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DataTable from '../../components/common/DataTable';
 import type { Column } from '../../components/common/DataTable';
@@ -11,7 +11,6 @@ import {
   updateProcess,
   deleteProcess,
   finalizeProcess,
-  billProcess,
   validateReference,
   findClientByReference,
   searchProcesses,
@@ -603,24 +602,6 @@ export default function Processes() {
               strokeLinejoin="round"
               strokeWidth={2}
               d="M5 13l4 4L19 7"
-            />
-          </svg>
-        </button>
-      )}
-
-      {/* Botão Faturar */}
-      {process.status === 'finalized' && (
-        <button
-          onClick={() => handleBill(process)}
-          className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-          title="Faturar"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"
             />
           </svg>
         </button>

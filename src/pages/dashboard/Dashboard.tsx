@@ -281,12 +281,15 @@ export default function Dashboard() {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ label, percent }) => `${label}: ${(percent * 100).toFixed(0)}%`}
+                  label={({ label, percent }) => {
+                    if (!percent) return null;
+                    return `${label}: ${(percent * 100).toFixed(0)}%`;
+                  }}
                   outerRadius={100}
                   fill="#8884d8"
                   dataKey="count"
                 >
-                  {processStatus.map((entry, index) => {
+                  {processStatus.map((_, index) => {
                     const colors = ['#3b82f6', '#10b981', '#f59e0b'];
                     return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
                   })}
