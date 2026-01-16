@@ -239,7 +239,7 @@ export default function Dashboard() {
                 <XAxis dataKey="month" />
                 <YAxis />
                 <Tooltip
-                  formatter={(value: number | undefined) => value ? `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ 0,00'}
+                  formatter={(value: number | undefined) => value !== undefined ? `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ 0,00'}
                 />
                 <Legend />
                 <Line
@@ -276,7 +276,7 @@ export default function Dashboard() {
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={processStatus}
+                  data={processStatus as any}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
